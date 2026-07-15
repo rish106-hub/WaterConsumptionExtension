@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>AquaAI</title>
+</head>
+<body>
+  <header class="head">
+    <span class="drop">💧</span>
+    <div>
+      <h1>AquaAI</h1>
+      <p class="sub">ChatGPT water footprint</p>
+    </div>
+  </header>
+
+  <section class="cards">
+    <div class="card">
+      <div class="card-label">Today</div>
+      <div class="card-value" id="today">–</div>
+      <div class="card-foot" id="today-queries">0 queries</div>
+    </div>
+    <div class="card">
+      <div class="card-label">All time</div>
+      <div class="card-value" id="total">–</div>
+      <div class="card-foot" id="total-queries">0 queries</div>
+    </div>
+  </section>
+
+  <div class="equiv" id="equiv"></div>
+
+  <section class="last">
+    <span>Last query</span>
+    <b id="last">–</b>
+  </section>
+
+  <details class="settings">
+    <summary>Model settings</summary>
+    <p class="hint">
+      Estimation factors. Defaults follow public research
+      (Li et&nbsp;al., 2023). These are assumptions — tune as needed.
+    </p>
+    <label>
+      Base water per query (mL)
+      <input type="number" id="cfg-base" min="0" step="0.5" />
+    </label>
+    <label>
+      Water per 1,000 tokens (mL)
+      <input type="number" id="cfg-perk" min="0" step="1" />
+    </label>
+    <div class="btn-row">
+      <button id="save" class="primary">Save</button>
+      <button id="reset-cfg" class="ghost">Defaults</button>
+    </div>
+    <p class="saved" id="saved-msg" hidden>Saved ✓</p>
+  </details>
+
+  <section class="scan">
+    <button id="scan" class="primary wide">↻ Scan my recent chats</button>
+    <p class="scan-status" id="scan-status">
+      Opens each conversation in your ChatGPT sidebar and adds it to your
+      all-time total. Keep the ChatGPT tab open while it runs.
+    </p>
+  </section>
+
+  <footer class="foot">
+    <button id="reset-stats" class="danger">Reset all data</button>
+    <p class="disclaimer">
+      Figures are estimates only and do not represent exact water usage.
+    </p>
+  </footer>
+
+  <script src="estimator.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

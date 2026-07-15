@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AquaAI — Demo</title>
+  <link rel="stylesheet" href="styles/overlay.css" />
+  <style>
+    body {
+      margin: 0; min-height: 100vh; background: #0f1720; color: #e8eef3;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .fake-chat { max-width: 720px; margin: 0 auto; padding: 24px 20px 160px; }
+    .banner {
+      background: #17222e; border: 1px solid #24323f; border-radius: 12px;
+      padding: 14px 16px; margin-bottom: 20px; font-size: 13px; line-height: 1.5;
+    }
+    .banner b { color: #33a3ff; }
+    h2 { font-size: 15px; color: #8ba0b0; font-weight: 600; }
+    .msg { margin: 14px 0; display: flex; gap: 10px; }
+    .msg .who { font-size: 12px; color: #8ba0b0; width: 66px; flex: none; padding-top: 2px; }
+    .msg .txt {
+      background: #17222e; border: 1px solid #24323f; border-radius: 10px;
+      padding: 10px 14px; font-size: 14px; line-height: 1.5; white-space: pre-wrap;
+    }
+    /* mimic ChatGPT's docked composer */
+    .composer-dock {
+      position: fixed; left: 0; right: 0; bottom: 0; background: #0f1720;
+      border-top: 1px solid #24323f; padding: 14px 16px 20px;
+    }
+    .composer-inner { max-width: 720px; margin: 0 auto; }
+    #demo-composer { display: flex; gap: 10px; }
+    #prompt {
+      flex: 1; background: #17222e; color: #e8eef3; border: 1px solid #24323f;
+      border-radius: 12px; padding: 14px; font-size: 14px;
+    }
+    #send {
+      background: #1e88e5; color: #fff; border: none; border-radius: 12px;
+      padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="fake-chat">
+    <div class="banner">
+      🧪 <b>AquaAI demo</b> — the small 💧 icon docks on the prompt bar. On load
+      it <b>backfills the existing conversation</b> below into your all-time
+      total (like the real extension does with your ChatGPT history). Send a new
+      prompt to watch it grow; click the icon for the breakdown.
+    </div>
+    <h2>Mock ChatGPT</h2>
+    <div id="thread"></div>
+  </div>
+
+  <!-- Mimic ChatGPT's bottom composer; AquaAI docks itself above the form -->
+  <div class="composer-dock">
+    <div class="composer-inner">
+      <!-- The extension inserts #aquaai-wrap right here, before the form -->
+      <form id="demo-composer" data-type="unified-composer" onsubmit="return false">
+        <input id="prompt" type="text" placeholder="Ask something… (e.g. Explain quantum computing)" />
+        <button id="send" type="button">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="src/estimator.js"></script>
+  <script>
+    (function () {
+      const E = globalThis.AquaAIEstimator;
+      const thread = document.getElementById("thread");
+      const promptEl = document.getElementById("prompt");
+
+      let total = 0, last = 0, today = 0;
+
+      // Build the SAME bar/popover markup the content script injects.
+      const root = document.createElement("div");
+      root.id = "aquaai-wrap";
+      root.innerHTML = `
+        <div id="aquaai-panel" role="dialog">
+          <div class="aquaai-panel-head"><span>💧 Water Footprint</span>
+            <button id="aquaai-close">×</button></div>
+          <div class="aquaai-row"><span>Last query</span><b id="aquaai-last">–</b></div>
+          <div class="aquaai-row"><span>Today</span><b id="aquaai-today">–</b></div>
+          <div class="aquaai-row"><span>All time</span><b id="aquaai-total">–</b></div>
+          <div class="aquaai-note" id="aquaai-equiv">Send a prompt to see its water cost.</div>
+          <div class="aquaai-disclaimer">Estimate only — based on public research
+            (Li et&nbsp;al., 2023). Actual usage varies by model, data center &amp; grid.</div>
+        </div>
+        <button id="aquaai-bar" title="AquaAI water footprint — click for details">
+          <span class="aquaai-drop">💧</span>
+          <span id="aquaai-bar-summary"></span>
+        </button>`;
+      const form = document.getElementById("demo-composer");
+      form.parentElement.insertBefore(root, form);
+
+      root.querySelector("#aquaai-bar").addEventListener("click", () =>
+        root.classList.toggle("aquaai-open"));
+      root.querySelector("#aquaai-close").addEventListener("click", (e) => {
+        e.stopPropagation(); root.classList.remove("aquaai-open");
+      });
+
+      function fakeReply(p) {
+        const base = "Here's a concise explanation. This simulated response " +
+          "demonstrates how AquaAI estimates water use from answer length. ";
+        return base.repeat(1 + (p.length % 5)).trim();
+      }
+      function addMsg(who, txt) {
+        const el = document.createElement("div");
+        el.className = "msg";
+        el.innerHTML = `<div class="who">${who}</div><div class="txt"></div>`;
+        el.querySelector(".txt").textContent = txt;
+        thread.appendChild(el);
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+      function render() {
+        const sum = root.querySelector("#aquaai-bar-summary");
+        if (total > 0) { sum.textContent = E.formatVolume(total); sum.style.display = ""; }
+        else { sum.textContent = ""; sum.style.display = "none"; }
+        root.querySelector("#aquaai-last").textContent = E.formatVolume(last);
+        root.querySelector("#aquaai-today").textContent = E.formatVolume(today);
+        root.querySelector("#aquaai-total").textContent = E.formatVolume(total);
+        root.querySelector("#aquaai-equiv").textContent =
+          "All time ≈ " + E.relatableEquivalent(total);
+        root.classList.remove("aquaai-pulse"); void root.offsetWidth;
+        root.classList.add("aquaai-pulse");
+      }
+      function send() {
+        const p = promptEl.value.trim();
+        if (!p) return;
+        promptEl.value = "";
+        addMsg("You", p);
+        root.classList.add("aquaai-busy");
+        setTimeout(() => {
+          const reply = fakeReply(p);
+          addMsg("ChatGPT", reply);
+          const res = E.estimateWater({ responseText: reply });
+          last = res.ml; total += res.ml; today += res.ml;
+          root.classList.remove("aquaai-busy");
+          render();
+        }, 700);
+      }
+      document.getElementById("send").addEventListener("click", send);
+      promptEl.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+
+      // Simulate the extension backfilling an EXISTING conversation on load:
+      // these count toward the all-time total (not "today"), just like history.
+      [
+        "Give me a recipe for banana bread",
+        "Summarize the French Revolution in 5 points"
+      ].forEach((q) => {
+        addMsg("You", q);
+        const reply = fakeReply(q);
+        addMsg("ChatGPT", reply);
+        total += E.estimateWater({ responseText: reply }).ml;
+      });
+      render(); // bar shows the backfilled total immediately on load
+    })();
+  </script>
+</body>
+</html>

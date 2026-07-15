@@ -1,0 +1,92 @@
+:root {
+  --bg: #0f1720;
+  --card: #17222e;
+  --line: #24323f;
+  --text: #e8eef3;
+  --muted: #8ba0b0;
+  --accent: #33a3ff;
+  --accent-2: #1e88e5;
+  --danger: #ff6b6b;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f9fc;
+    --card: #ffffff;
+    --line: #e2ecf3;
+    --text: #12222e;
+    --muted: #5d7284;
+    --accent: #1e88e5;
+    --accent-2: #1565c0;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  width: 320px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 14px;
+}
+
+.head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.head .drop { font-size: 26px; }
+.head h1 { font-size: 17px; margin: 0; }
+.head .sub { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+.card-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.card-value { font-size: 22px; font-weight: 700; margin: 4px 0 2px; color: var(--accent); }
+.card-foot { font-size: 11px; color: var(--muted); }
+
+.equiv {
+  margin: 10px 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  min-height: 15px;
+}
+
+.last {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; font-size: 13px;
+}
+.last b { color: var(--accent); }
+
+.settings {
+  margin-top: 12px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px 12px;
+}
+.settings summary { cursor: pointer; padding: 8px 0; font-size: 13px; font-weight: 600; }
+.settings .hint { font-size: 11px; color: var(--muted); margin: 4px 0 10px; line-height: 1.4; }
+.settings label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.settings input {
+  width: 100%; margin-top: 4px; padding: 7px 9px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px; font-size: 13px;
+}
+
+.btn-row { display: flex; gap: 8px; }
+button {
+  cursor: pointer; border: none; border-radius: 8px;
+  padding: 8px 12px; font-size: 13px; font-weight: 600;
+}
+.primary { background: var(--accent-2); color: #fff; flex: 1; }
+.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.danger { background: transparent; color: var(--danger); border: 1px solid var(--line); width: 100%; }
+.saved { font-size: 12px; color: #4caf50; margin: 8px 0 0; }
+
+.wide { width: 100%; }
+.scan { margin-top: 12px; }
+.scan-status { font-size: 11px; color: var(--muted); line-height: 1.4; margin: 8px 0 0; }
+
+.foot { margin-top: 12px; }
+.disclaimer { font-size: 10px; color: var(--muted); line-height: 1.4; margin: 10px 0 0; text-align: center; }
