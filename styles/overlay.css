@@ -1,8 +1,19 @@
 /* overlay.css — the AquaAI indicator docked onto the ChatGPT prompt bar.
-   Everything is scoped under #aquaai-wrap and uses high specificity so
-   ChatGPT's own styles don't bleed in. */
+   Scoped under #aquaai-wrap with high specificity so ChatGPT's own styles
+   don't bleed in. Theming via CSS variables: light is the default; dark
+   applies on OS-auto (no explicit choice) or via [data-theme="dark"]. */
 
 #aquaai-wrap {
+  /* light palette (default) */
+  --aq-bar-bg: rgba(255, 255, 255, 0.95);
+  --aq-panel-bg: #ffffff;
+  --aq-line: #dce7f0;
+  --aq-text: #12222e;
+  --aq-muted: #5d7284;
+  --aq-faint: #8397a8;
+  --aq-accent: #1e88e5;
+  --aq-shadow: rgba(20, 50, 80, 0.18);
+
   position: relative;
   z-index: 30;
   display: flex;
@@ -10,6 +21,29 @@
   width: 100%;
   margin: 0 auto 8px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  #aquaai-wrap:not([data-theme]) {
+    --aq-bar-bg: rgba(23, 34, 46, 0.92);
+    --aq-panel-bg: #17222e;
+    --aq-line: #263543;
+    --aq-text: #e8eef3;
+    --aq-muted: #8ba0b0;
+    --aq-faint: #6a7f8f;
+    --aq-accent: #33a3ff;
+    --aq-shadow: rgba(0, 0, 0, 0.5);
+  }
+}
+#aquaai-wrap[data-theme="dark"] {
+  --aq-bar-bg: rgba(23, 34, 46, 0.92);
+  --aq-panel-bg: #17222e;
+  --aq-line: #263543;
+  --aq-text: #e8eef3;
+  --aq-muted: #8ba0b0;
+  --aq-faint: #6a7f8f;
+  --aq-accent: #33a3ff;
+  --aq-shadow: rgba(0, 0, 0, 0.5);
 }
 
 /* Fallback: if the composer can't be found, float above the page bottom. */
@@ -28,9 +62,9 @@
   align-items: center;
   gap: 8px;
   max-width: 100%;
-  background: rgba(23, 34, 46, 0.92);
-  color: #e8eef3;
-  border: 1px solid #2b3b49;
+  background: var(--aq-bar-bg);
+  color: var(--aq-text);
+  border: 1px solid var(--aq-line);
   border-radius: 999px;
   padding: 6px 14px;
   font-size: 12.5px;
@@ -38,17 +72,17 @@
   line-height: 1;
   cursor: pointer;
   backdrop-filter: blur(6px);
-  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 3px 14px var(--aq-shadow);
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
 #aquaai-wrap #aquaai-bar:hover {
   transform: translateY(-1px);
-  border-color: #33a3ff;
+  border-color: var(--aq-accent);
 }
-#aquaai-wrap .aquaai-drop { display: inline-flex; color: #33a3ff; }
+#aquaai-wrap .aquaai-drop { display: inline-flex; color: var(--aq-accent); }
 #aquaai-wrap .aquaai-ico { width: 15px; height: 15px; display: block; }
 #aquaai-wrap .aquaai-head-title { display: inline-flex; align-items: center; gap: 7px; }
-#aquaai-wrap .aquaai-head-title .aquaai-ico { width: 16px; height: 16px; color: #33a3ff; }
+#aquaai-wrap .aquaai-head-title .aquaai-ico { width: 16px; height: 16px; color: var(--aq-accent); }
 /* When there's no number yet, the bar collapses to a neat icon-only circle. */
 #aquaai-wrap #aquaai-bar-summary:empty { display: none; }
 
@@ -59,12 +93,12 @@
   left: 50%;
   transform: translateX(-50%);
   margin-bottom: 8px;
-  width: 250px;
-  background: #17222e;
-  border: 1px solid #2b3b49;
+  width: 252px;
+  background: var(--aq-panel-bg);
+  border: 1px solid var(--aq-line);
   border-radius: 14px;
   padding: 14px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 36px var(--aq-shadow);
   display: none;
 }
 #aquaai-wrap.aquaai-open #aquaai-panel { display: block; }
@@ -75,13 +109,13 @@
   align-items: center;
   font-weight: 700;
   font-size: 13px;
-  color: #e8eef3;
+  color: var(--aq-text);
   margin-bottom: 10px;
 }
 #aquaai-wrap #aquaai-close {
   background: transparent;
   border: none;
-  color: #8ba0b0;
+  color: var(--aq-muted);
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
@@ -92,25 +126,31 @@
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: #8ba0b0;
+  color: var(--aq-muted);
   padding: 5px 0;
-  border-bottom: 1px solid #202d38;
+  border-bottom: 1px solid var(--aq-line);
 }
 #aquaai-wrap .aquaai-row:last-of-type { border-bottom: none; }
-#aquaai-wrap .aquaai-row b { color: #33a3ff; font-size: 13px; }
+#aquaai-wrap .aquaai-row b { color: var(--aq-accent); font-size: 13px; }
 
 #aquaai-wrap .aquaai-note {
   font-size: 11px;
-  color: #8ba0b0;
+  color: var(--aq-muted);
   text-align: center;
   margin: 10px 0 6px;
 }
 #aquaai-wrap .aquaai-disclaimer {
   font-size: 10px;
   line-height: 1.4;
-  color: #6a7f8f;
-  border-top: 1px solid #202d38;
+  color: var(--aq-faint);
+  border-top: 1px solid var(--aq-line);
   padding-top: 8px;
+}
+#aquaai-wrap .aquaai-privacy {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--aq-accent);
+  margin-top: 6px;
 }
 
 /* busy / calculating state */
@@ -128,18 +168,6 @@
 }
 @keyframes aquaai-pop {
   0% { transform: scale(1); }
-  40% { transform: scale(1.05); border-color: #33a3ff; }
+  40% { transform: scale(1.05); border-color: var(--aq-accent); }
   100% { transform: scale(1); }
-}
-
-@media (prefers-color-scheme: light) {
-  #aquaai-wrap #aquaai-bar {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: #d7e3ec;
-    color: #12222e;
-  }
-  #aquaai-wrap #aquaai-panel { background: #ffffff; border-color: #d7e3ec; }
-  #aquaai-wrap .aquaai-panel-head { color: #12222e; }
-  #aquaai-wrap .aquaai-row { color: #5d7284; border-bottom-color: #eef4f8; }
-  #aquaai-wrap .aquaai-row b { color: #1e88e5; }
 }

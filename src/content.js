@@ -116,7 +116,13 @@
   }
 
   function blankStats() {
-    return { totalMl: 0, totalQueries: 0, days: {}, lastQuery: null, countedIds: [] };
+    return { totalMl: 0, totalQueries: 0, days: {}, lastQuery: null, countedIds: [], conversations: {} };
+  }
+
+  // The current conversation id from the URL (/c/<id>), or "" if none yet.
+  function currentConversationId() {
+    const m = location.pathname.match(/\/c\/([0-9a-f-]+)/i);
+    return m ? m[1] : "";
   }
 
   /**
@@ -126,8 +132,9 @@
    * @param {boolean} live  true = a query made right now (counts toward "today"
    *                        and becomes "last"); false = backfilled history
    *                        (counts toward all-time totals only).
+   * @param {string} [convId] conversation these events belong to (per-chat tally)
    */
-  function recordEvents(events, live) {
+  function recordEvents(events, live, convId) {
     if (!events || !events.length) return;
     writeChain = writeChain.then(
       () =>
@@ -135,9 +142,13 @@
           chrome.storage.local.get([STORAGE_STATS_KEY], (res) => {
             const stats = Object.assign(blankStats(), res[STORAGE_STATS_KEY] || {});
             if (!Array.isArray(stats.countedIds)) stats.countedIds = [];
+            if (!stats.conversations) stats.conversations = {};
             const persisted = new Set(stats.countedIds);
             const key = todayKey();
             const day = stats.days[key] || { ml: 0, queries: 0 };
+            const conv = convId
+              ? stats.conversations[convId] || { ml: 0, queries: 0 }
+              : null;
             let added = 0;
 
             for (const ev of events) {
@@ -147,6 +158,10 @@
               stats.totalMl = Math.round((stats.totalMl + ev.result.ml) * 100) / 100;
               stats.totalQueries += 1;
               added++;
+              if (conv) {
+                conv.ml = Math.round((conv.ml + ev.result.ml) * 100) / 100;
+                conv.queries += 1;
+              }
               if (live) {
                 day.ml = Math.round((day.ml + ev.result.ml) * 100) / 100;
                 day.queries += 1;
@@ -156,6 +171,7 @@
 
             if (!added) return resolve();
             if (live) stats.days[key] = day;
+            if (conv) stats.conversations[convId] = conv;
 
             chrome.storage.local.set({ [STORAGE_STATS_KEY]: stats }, () => {
               UI.render(stats);
@@ -196,7 +212,7 @@
       UI.setCalculating(false);
       // Live only if we saw the user send this prompt; otherwise it's history.
       const live = consumeLive();
-      recordEvents([{ id: id, result: result }], live);
+      recordEvents([{ id: id, result: result }], live, currentConversationId());
     }, STREAM_IDLE_MS);
     finalizeTimers.set(id, timer);
   }
@@ -223,7 +239,7 @@
       const text = (node.innerText || "").trim();
       events.push({ id: id, result: Estimator.estimateWater({ responseText: text, config: config }) });
     });
-    recordEvents(events, false); // history → all-time totals only
+    recordEvents(events, false, currentConversationId()); // history → all-time totals only
   }
 
   // ---------------------------------------------------------------------
@@ -330,7 +346,7 @@
               result: Estimator.estimateWater({ responseText: m.text, config: config })
             });
           }
-          recordEvents(events, false); // scanned history → all-time only
+          recordEvents(events, false, id); // scanned history → all-time only
         } catch (_) {
           /* skip a conversation that fails to load */
         }
@@ -411,11 +427,13 @@
             <button id="aquaai-close" aria-label="Close">×</button>
           </div>
           <div class="aquaai-row"><span>This prompt</span><b id="aquaai-last">–</b></div>
+          <div class="aquaai-row"><span>This chat</span><b id="aquaai-chat">–</b></div>
           <div class="aquaai-row"><span>Today</span><b id="aquaai-today">–</b></div>
           <div class="aquaai-row"><span>Lifetime</span><b id="aquaai-total">–</b></div>
           <div class="aquaai-note" id="aquaai-equiv">Send a prompt to see its water cost.</div>
           <div class="aquaai-disclaimer">Estimate only — based on public research
             (Li et&nbsp;al., 2023). Actual usage varies by model, data center &amp; grid.</div>
+          <div class="aquaai-privacy">Read locally on your device — never uploaded or shared.</div>
         </div>
         <button id="aquaai-bar" title="AquaAI water footprint — click for details">
           <span class="aquaai-drop">${drop}</span>
@@ -475,7 +493,11 @@
         summary.textContent = "";
         summary.style.display = "none";
       }
+      const convId = currentConversationId();
+      const conv = convId && stats.conversations ? stats.conversations[convId] : null;
       root.querySelector("#aquaai-last").textContent = Estimator.formatVolume(last);
+      root.querySelector("#aquaai-chat").textContent =
+        conv ? Estimator.formatVolume(conv.ml) : "–";
       root.querySelector("#aquaai-today").textContent = Estimator.formatVolume(today);
       root.querySelector("#aquaai-total").textContent = Estimator.formatVolume(total);
       root.querySelector("#aquaai-equiv").textContent =
@@ -486,7 +508,15 @@
       root.classList.add("aquaai-pulse");
     }
 
-    return { build, ensureMounted, render, setCalculating };
+    // Apply the user's theme choice to the on-page panel. "auto" (or unset)
+    // lets overlay.css follow the OS via prefers-color-scheme.
+    function applyTheme(theme) {
+      if (!root) return;
+      if (theme === "light" || theme === "dark") root.setAttribute("data-theme", theme);
+      else root.removeAttribute("data-theme");
+    }
+
+    return { build, ensureMounted, render, setCalculating, applyTheme };
   })();
 
   // ---------------------------------------------------------------------
@@ -520,6 +550,7 @@
     // history that was already counted on a previous visit.
     chrome.storage.local.get([STORAGE_CONFIG_KEY, STORAGE_STATS_KEY], (res) => {
       config = Object.assign({}, Estimator.DEFAULTS, res[STORAGE_CONFIG_KEY] || {});
+      UI.applyTheme(config.theme);
       const stats = res[STORAGE_STATS_KEY];
       if (stats) {
         (stats.countedIds || []).forEach((id) => counted.add(id));
@@ -533,20 +564,32 @@
       setTimeout(backfillExisting, 3500);
     });
 
-    // The popup asks us to scan the sidebar; kick it off on this page.
+    // Messages from the popup: start a scan, or report this chat's usage.
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-      if (msg && msg.type === "AQUAAI_SCAN") {
+      if (!msg) return false;
+      if (msg.type === "AQUAAI_SCAN") {
         runScan();
         sendResponse({ started: true, alreadyRunning: scanning });
+        return false;
+      }
+      if (msg.type === "AQUAAI_GET_CHAT") {
+        const convId = currentConversationId();
+        chrome.storage.local.get([STORAGE_STATS_KEY], (res) => {
+          const s = res[STORAGE_STATS_KEY] || {};
+          const conv = convId && s.conversations ? s.conversations[convId] : null;
+          sendResponse(conv ? { convId: convId, ml: conv.ml, queries: conv.queries } : { convId: convId });
+        });
+        return true; // async response
       }
       return false;
     });
 
-    // Live-update the overlay if the popup edits config or resets stats.
+    // Live-update the overlay if the popup edits config (incl. theme) or stats.
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local") return;
       if (changes[STORAGE_CONFIG_KEY]) {
         config = Object.assign({}, Estimator.DEFAULTS, changes[STORAGE_CONFIG_KEY].newValue || {});
+        UI.applyTheme(config.theme);
       }
       if (changes[STORAGE_STATS_KEY] && changes[STORAGE_STATS_KEY].newValue) {
         UI.render(changes[STORAGE_STATS_KEY].newValue);

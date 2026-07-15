@@ -10,8 +10,9 @@
   --green-soft: #e7f6ec;
   --danger: #e2564d;
 }
+/* Dark palette, shared by OS-auto (no explicit choice) and the manual toggle. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #0e151d;
     --card: #16202b;
     --line: #223140;
@@ -24,6 +25,19 @@
     --danger: #ff6b6b;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #0e151d;
+  --card: #16202b;
+  --line: #223140;
+  --text: #eaf1f8;
+  --muted: #8ba0b3;
+  --accent: #4b90ff;
+  --accent-soft: #1a2a3f;
+  --green: #43c07a;
+  --green-soft: #16281f;
+  --danger: #ff6b6b;
+}
+/* [data-theme="light"] simply keeps the :root light palette above. */
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -50,6 +64,18 @@ body {
 }
 .icon-btn:hover { background: var(--accent-soft); color: var(--accent); }
 .icon-btn svg { width: 18px; height: 18px; }
+
+/* Theme toggle shows the icon for the mode you'll switch TO. */
+.ico-sun { display: none; }
+.ico-moon { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .ico-moon { display: none; }
+  :root:not([data-theme]) .ico-sun { display: block; }
+}
+:root[data-theme="dark"] .ico-moon { display: none; }
+:root[data-theme="dark"] .ico-sun { display: block; }
+:root[data-theme="light"] .ico-moon { display: block; }
+:root[data-theme="light"] .ico-sun { display: none; }
 
 /* Cards */
 .card {
@@ -121,6 +147,15 @@ button { cursor: pointer; font-family: inherit; }
 }
 
 .scan-status { font-size: 11px; color: var(--muted); line-height: 1.45; margin: 8px 2px 0; text-align: center; }
+
+.privacy {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: var(--accent-soft); border-radius: 12px;
+  padding: 10px 12px; margin-top: 12px;
+  font-size: 10.5px; line-height: 1.5; color: var(--muted);
+}
+.privacy svg { width: 15px; height: 15px; flex: none; margin-top: 1px; color: var(--accent); }
+.privacy b { color: var(--text); font-weight: 700; }
 
 /* Settings */
 .settings { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }

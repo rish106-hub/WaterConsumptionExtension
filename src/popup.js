@@ -48,6 +48,26 @@
 
   const $ = (id) => document.getElementById(id);
 
+  // --- Theme -------------------------------------------------------------
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    if (theme === "light" || theme === "dark") root.dataset.theme = theme;
+    else delete root.dataset.theme; // "auto" → follow OS
+  }
+  function effectiveIsDark() {
+    const t = document.documentElement.dataset.theme;
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function toggleTheme() {
+    const next = effectiveIsDark() ? "light" : "dark";
+    applyTheme(next);
+    const cfg = Object.assign({}, Estimator.DEFAULTS, currentConfig, { theme: next });
+    currentConfig = cfg;
+    chrome.storage.local.set({ [STORAGE_CONFIG_KEY]: cfg });
+  }
+
   function dayKey(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
@@ -132,8 +152,27 @@
   function load() {
     chrome.storage.local.get([STORAGE_CONFIG_KEY, STORAGE_STATS_KEY], (res) => {
       currentConfig = res[STORAGE_CONFIG_KEY] || {};
+      applyTheme(currentConfig.theme || "auto");
       renderStats(res[STORAGE_STATS_KEY], currentConfig);
       renderConfig(currentConfig);
+    });
+  }
+
+  // Ask the active ChatGPT tab how much water the open conversation has used.
+  function loadCurrentChat() {
+    if (!chrome.tabs || !chrome.tabs.query) return;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs && tabs[0];
+      if (!tab || !CHATGPT_RE.test(tab.url || "")) return;
+      chrome.tabs.sendMessage(tab.id, { type: "AQUAAI_GET_CHAT" }, (resp) => {
+        void chrome.runtime.lastError;
+        if (!resp || !resp.convId || !resp.ml) return;
+        const s = Estimator.splitVolume(resp.ml);
+        $("chat-val").textContent = s.value;
+        $("chat-unit").textContent = s.unit;
+        $("chat-queries").textContent = `${resp.queries} ${resp.queries === 1 ? "query" : "queries"} this chat`;
+        $("chat-card").hidden = false;
+      });
     });
   }
 
@@ -201,10 +240,12 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     load();
+    loadCurrentChat();
     $("save").addEventListener("click", saveConfig);
     $("reset-cfg").addEventListener("click", resetConfig);
     $("reset-stats").addEventListener("click", resetStats);
     $("scan").addEventListener("click", startScan);
+    $("theme-toggle").addEventListener("click", toggleTheme);
     $("settings-toggle").addEventListener("click", () => {
       const s = $("settings");
       s.hidden = !s.hidden;
