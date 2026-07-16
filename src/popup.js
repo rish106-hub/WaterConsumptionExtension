@@ -1,7 +1,6 @@
 /*
- * popup.js — renders the dashboard (This Prompt / Today + donut / Weekly Trend
- * line chart / Lifetime), drives the background history scan, and exposes the
- * model settings. estimator.js loads first (see popup.html).
+ * popup.js — renders the current-chat and history estimates, drives the
+ * background scan, and exposes advanced model assumptions.
  */
 (function () {
   "use strict";
@@ -11,18 +10,10 @@
   // absent. Provide a tiny mock with sample data so the page still renders
   // for design review. Inert inside the real extension.
   if (typeof chrome === "undefined" || !chrome.storage) {
-    const sampleDays = {};
-    const demo = [1200, 1900, 900, 2400, 1500, 2100, 2430];
-    const base = new Date();
-    demo.forEach((ml, i) => {
-      const d = new Date(base);
-      d.setDate(base.getDate() - (demo.length - 1 - i));
-      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      sampleDays[k] = { ml: ml, queries: Math.round(ml / 15) };
-    });
     const sampleStats = {
-      totalMl: 284600, totalQueries: 18900, days: sampleDays,
-      lastQuery: { ml: 18.7, tokens: 456, ts: Date.now() }, countedIds: []
+      totalMl: 284600, totalQueries: 18900, days: {},
+      lastQuery: { ml: 18.7, tokens: 456, ts: Date.now() }, countedIds: [],
+      lastScan: { ts: Date.now(), conversations: 189, failed: 0 }
     };
     const mock = {
       storage: {
@@ -44,8 +35,8 @@
   const Estimator = globalThis.AquaAIEstimator;
   const STORAGE_CONFIG_KEY = "aquaai_config";
   const STORAGE_STATS_KEY = "aquaai_stats";
-  const DONUT_CIRC = 2 * Math.PI * 27; // r=27 in the SVG
-
+  const SCALE_USERS = 100000;
+  const SCALE_PROMPTS_PER_USER = 10;
   const $ = (id) => document.getElementById(id);
 
   // --- Theme -------------------------------------------------------------
@@ -68,84 +59,74 @@
     chrome.storage.local.set({ [STORAGE_CONFIG_KEY]: cfg });
   }
 
-  function dayKey(d) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
-  function todayKey() { return dayKey(new Date()); }
-
   function setStat(prefix, ml) {
-    const s = Estimator.splitVolume(ml);
+    const s = Estimator.splitVolume(ml, volumeUnit());
     $(prefix + "-val").textContent = s.value;
     $(prefix + "-unit").textContent = s.unit;
   }
 
-  // Last 7 days (oldest → newest) of { label, ml }.
-  function last7(stats) {
-    const out = [];
-    const now = new Date();
-    const wd = ["S", "M", "T", "W", "T", "F", "S"];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      const day = stats.days[dayKey(d)];
-      out.push({ label: wd[d.getDay()], ml: day ? day.ml : 0 });
-    }
-    return out;
+  function volumeUnit() {
+    return currentConfig.VOLUME_UNIT === "gallon" ? "gallon" : "metric";
   }
 
-  function renderTrend(stats) {
-    const data = last7(stats);
-    const W = 300, H = 96, pad = 8;
-    const max = Math.max(1, ...data.map((d) => d.ml));
-    const stepX = (W - pad * 2) / (data.length - 1);
-    const pts = data.map((d, i) => {
-      const x = pad + i * stepX;
-      const y = H - pad - (d.ml / max) * (H - pad * 2);
-      return [x, y];
-    });
-    const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
-    const area = `${line} L ${pts[pts.length - 1][0].toFixed(1)} ${H} L ${pts[0][0].toFixed(1)} ${H} Z`;
-    $("trend-line").setAttribute("d", line);
-    $("trend-area").setAttribute("d", area);
-    $("trend-labels").innerHTML = data.map((d) => `<span>${d.label}</span>`).join("");
-
-    // Delta: today vs yesterday, framed so "down" is good (green).
-    const today = data[6].ml, prev = data[5].ml;
-    const el = $("trend-delta");
-    if (prev === 0 && today === 0) { el.textContent = ""; el.className = "trend-delta"; return; }
-    if (prev === 0) { el.textContent = "▲ new"; el.className = "trend-delta up"; return; }
-    const pct = Math.round(((today - prev) / prev) * 100);
-    if (pct === 0) { el.textContent = "— flat"; el.className = "trend-delta"; }
-    else if (pct > 0) { el.textContent = `▲ ${pct}% vs yesterday`; el.className = "trend-delta up"; }
-    else { el.textContent = `▼ ${Math.abs(pct)}% vs yesterday`; el.className = "trend-delta down"; }
+  function chatAdvice(ml, queries) {
+    if (queries < 3) return "";
+    if (queries < 8) return "When detail is not needed, ask for a concise answer.";
+    if (ml < 100) return "Put context, format, and constraints in one prompt to avoid follow-ups.";
+    return "This chat is growing. Put context, format, and constraints in your next prompt.";
   }
 
-  function renderStats(stats, cfg) {
+  function renderStats(stats) {
     stats = stats || { totalMl: 0, totalQueries: 0, days: {}, lastQuery: null };
-    cfg = Object.assign({}, Estimator.DEFAULTS, cfg || {});
-    const day = stats.days[todayKey()] || { ml: 0, queries: 0 };
-
     setStat("prompt", stats.lastQuery ? stats.lastQuery.ml : 0);
-    setStat("today", day.ml);
     setStat("total", stats.totalMl);
-
-    $("today-queries").textContent = `${day.queries} ${day.queries === 1 ? "query" : "queries"} today`;
-    $("total-queries").textContent = `${stats.totalQueries} ${stats.totalQueries === 1 ? "query" : "queries"} all time`;
-
-    // Donut = today vs daily goal.
-    const goal = cfg.DAILY_GOAL_ML || Estimator.DEFAULTS.DAILY_GOAL_ML;
-    const pct = Math.max(0, Math.min(100, Math.round((day.ml / goal) * 100)));
-    $("donut-arc").setAttribute("stroke-dasharray", `${(pct / 100) * DONUT_CIRC} ${DONUT_CIRC}`);
-    $("donut-pct").textContent = pct + "%";
-
-    renderTrend(stats);
+    const scan = stats.lastScan;
+    if (!scan || !scan.conversations) {
+      $("history-meta").textContent = "No history scan yet.";
+      $("impact-message").textContent = "Scan history for a broader estimate.";
+      $("history-scale").hidden = true;
+      if (stats.lastQuery && stats.lastQuery.ml > 0) {
+        $("scale-copy").textContent = `If ${SCALE_USERS.toLocaleString()} people sent a prompt like your last one:`;
+        $("scale-total").textContent = Estimator.formatVolume(stats.lastQuery.ml * SCALE_USERS, volumeUnit());
+        $("scale-scenario").hidden = false;
+      } else {
+        $("scale-scenario").hidden = true;
+      }
+      return;
+    }
+    const included = scan.conversations - (scan.failed || 0);
+    const updated = new Date(scan.ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    $("history-meta").textContent = `${included} ${included === 1 ? "chat" : "chats"} included · Updated ${updated}`;
+    $("impact-message").textContent = Estimator.compactingTip(stats.totalMl, stats.totalQueries);
+    $("history-scale").textContent = `For scale: ${Estimator.relatableEquivalent(stats.totalMl)}.`;
+    $("history-scale").hidden = false;
+    if (stats.totalQueries > 0) {
+      const projectedMl = (stats.totalMl / stats.totalQueries) * SCALE_USERS * SCALE_PROMPTS_PER_USER;
+      $("scale-copy").textContent = `If ${SCALE_USERS.toLocaleString()} people made ${SCALE_PROMPTS_PER_USER} prompts at your average estimated rate:`;
+      $("scale-total").textContent = Estimator.formatVolume(projectedMl, volumeUnit());
+      $("scale-scenario").hidden = false;
+    } else {
+      $("scale-scenario").hidden = true;
+    }
   }
 
   function renderConfig(cfg) {
     cfg = Object.assign({}, Estimator.DEFAULTS, cfg || {});
     $("cfg-base").value = cfg.BASE_ML_PER_QUERY;
     $("cfg-perk").value = cfg.ML_PER_1K_TOKENS;
-    $("cfg-goal").value = cfg.DAILY_GOAL_ML;
+    $("unit-select").value = cfg.VOLUME_UNIT === "gallon" ? "gallon" : "metric";
+  }
+
+  function renderEstimationControl(cfg) {
+    const enabled = cfg.ESTIMATION_ENABLED !== false;
+    const button = $("estimation-toggle");
+    button.classList.toggle("is-paused", !enabled);
+    button.setAttribute("aria-pressed", String(!enabled));
+    $("estimation-toggle-label").textContent = enabled ? "Pause water estimates" : "Resume water estimates";
+    $("estimation-status").textContent = enabled
+      ? "New ChatGPT turns are being estimated."
+      : "Paused. New turns will not be estimated or added later.";
+    $("scan").disabled = !enabled;
   }
 
   let currentConfig = {};
@@ -153,8 +134,9 @@
     chrome.storage.local.get([STORAGE_CONFIG_KEY, STORAGE_STATS_KEY], (res) => {
       currentConfig = res[STORAGE_CONFIG_KEY] || {};
       applyTheme(currentConfig.theme || "auto");
-      renderStats(res[STORAGE_STATS_KEY], currentConfig);
+      renderStats(res[STORAGE_STATS_KEY]);
       renderConfig(currentConfig);
+      renderEstimationControl(Object.assign({}, Estimator.DEFAULTS, currentConfig));
     });
   }
 
@@ -166,12 +148,14 @@
       if (!tab || !CHATGPT_RE.test(tab.url || "")) return;
       chrome.tabs.sendMessage(tab.id, { type: "AQUAAI_GET_CHAT" }, (resp) => {
         void chrome.runtime.lastError;
-        if (!resp || !resp.convId || !resp.ml) return;
-        const s = Estimator.splitVolume(resp.ml);
+        if (!resp || !resp.convId) return;
+        const s = Estimator.splitVolume(resp.ml, volumeUnit());
         $("chat-val").textContent = s.value;
         $("chat-unit").textContent = s.unit;
         $("chat-queries").textContent = `${resp.queries} ${resp.queries === 1 ? "query" : "queries"} this chat`;
-        $("chat-card").hidden = false;
+        const advice = chatAdvice(resp.ml, resp.queries);
+        $("chat-guidance").textContent = advice;
+        $("chat-guidance").hidden = !advice;
       });
     });
   }
@@ -179,12 +163,10 @@
   function saveConfig() {
     const base = parseFloat($("cfg-base").value);
     const perk = parseFloat($("cfg-perk").value);
-    const goal = parseFloat($("cfg-goal").value);
     const D = Estimator.DEFAULTS;
-    const cfg = Object.assign({}, D, {
+    const cfg = Object.assign({}, D, currentConfig, {
       BASE_ML_PER_QUERY: isFinite(base) && base >= 0 ? base : D.BASE_ML_PER_QUERY,
-      ML_PER_1K_TOKENS: isFinite(perk) && perk >= 0 ? perk : D.ML_PER_1K_TOKENS,
-      DAILY_GOAL_ML: isFinite(goal) && goal >= 100 ? goal : D.DAILY_GOAL_ML
+      ML_PER_1K_TOKENS: isFinite(perk) && perk >= 0 ? perk : D.ML_PER_1K_TOKENS
     });
     chrome.storage.local.set({ [STORAGE_CONFIG_KEY]: cfg }, () => {
       currentConfig = cfg;
@@ -200,10 +182,31 @@
     chrome.storage.local.set({ [STORAGE_CONFIG_KEY]: d }, () => { currentConfig = d; renderConfig(d); load(); });
   }
 
+  function toggleEstimation() {
+    const cfg = Object.assign({}, Estimator.DEFAULTS, currentConfig, {
+      ESTIMATION_ENABLED: currentConfig.ESTIMATION_ENABLED === false
+    });
+    chrome.storage.local.set({ [STORAGE_CONFIG_KEY]: cfg }, () => {
+      currentConfig = cfg;
+      renderEstimationControl(cfg);
+    });
+  }
+
+  function updateUnit() {
+    const cfg = Object.assign({}, Estimator.DEFAULTS, currentConfig, {
+      VOLUME_UNIT: $("unit-select").value === "gallon" ? "gallon" : "metric"
+    });
+    chrome.storage.local.set({ [STORAGE_CONFIG_KEY]: cfg }, () => {
+      currentConfig = cfg;
+      load();
+      loadCurrentChat();
+    });
+  }
+
   function resetStats() {
     if (!confirm("Reset all recorded water-consumption data? This cannot be undone.")) return;
     const empty = { totalMl: 0, totalQueries: 0, days: {}, lastQuery: null, countedIds: [] };
-    chrome.storage.local.set({ [STORAGE_STATS_KEY]: empty }, () => renderStats(empty, currentConfig));
+    chrome.storage.local.set({ [STORAGE_STATS_KEY]: empty }, () => renderStats(empty));
   }
 
   // --- Background scan ---------------------------------------------------
@@ -218,7 +221,7 @@
         return;
       }
       $("scan").disabled = true;
-      setScanStatus("Starting… this runs in the background; you can keep working.");
+      setScanStatus("Preparing history estimate…");
       chrome.tabs.sendMessage(tab.id, { type: "AQUAAI_SCAN" }, () => { void chrome.runtime.lastError; });
     });
   }
@@ -226,15 +229,17 @@
   function onScanMessage(msg) {
     if (!msg) return;
     if (msg.type === "AQUAAI_SCAN_PROGRESS") {
-      if (msg.phase === "auth") setScanStatus("Authorizing with your ChatGPT session…");
-      else if (msg.phase === "list") setScanStatus(`Finding conversations… ${msg.done} so far`);
-      else setScanStatus(`Reading chats… ${msg.done}/${msg.total}`);
+      if (msg.phase === "auth") setScanStatus("Preparing scan…");
+      else if (msg.phase === "list") setScanStatus(`Finding chats… ${msg.done} found`);
+      else setScanStatus(`Estimating chats… ${msg.done}/${msg.total}`);
     } else if (msg.type === "AQUAAI_SCAN_DONE") {
       $("scan").disabled = false;
-      setScanStatus(msg.total ? `Done — scanned ${msg.total} conversations.` : "No conversations found.");
+      if (!msg.total) setScanStatus("No conversations found.");
+      else if (msg.failed) setScanStatus(`${msg.total - msg.failed}/${msg.total} chats included. Try again later for the rest.`);
+      else setScanStatus(`History estimate ready · ${msg.total} chats included.`);
     } else if (msg.type === "AQUAAI_SCAN_ERROR") {
       $("scan").disabled = false;
-      setScanStatus("Scan failed: " + msg.error + ". Make sure you're signed in to ChatGPT.");
+      setScanStatus(msg.error === "estimation is paused" ? "Resume estimates to scan history." : "History scan stopped. Try again later.");
     }
   }
 
@@ -244,6 +249,8 @@
     $("save").addEventListener("click", saveConfig);
     $("reset-cfg").addEventListener("click", resetConfig);
     $("reset-stats").addEventListener("click", resetStats);
+    $("estimation-toggle").addEventListener("click", toggleEstimation);
+    $("unit-select").addEventListener("change", updateUnit);
     $("scan").addEventListener("click", startScan);
     $("theme-toggle").addEventListener("click", toggleTheme);
     $("settings-toggle").addEventListener("click", () => {
@@ -253,7 +260,8 @@
 
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "local" && changes[STORAGE_STATS_KEY]) {
-        renderStats(changes[STORAGE_STATS_KEY].newValue, currentConfig);
+        renderStats(changes[STORAGE_STATS_KEY].newValue);
+        loadCurrentChat();
       }
     });
     chrome.runtime.onMessage.addListener(onScanMessage);

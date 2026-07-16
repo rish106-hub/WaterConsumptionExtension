@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "AquaAI – ChatGPT Water Footprint",
-  "version": "1.0.0",
+  "version": "1.0.8",
   "description": "Estimates and visualizes the water consumption associated with each ChatGPT query to raise awareness of AI's environmental impact.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "unlimitedStorage"],
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*"

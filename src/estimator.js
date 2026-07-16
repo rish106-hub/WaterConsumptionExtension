@@ -21,10 +21,11 @@
  *   once on-site data-center cooling AND off-site power-generation water are
  *   included. That implies very roughly ~10-25 mL per response.
  *
- * We refine "per response" into two parts so longer answers cost more:
- *   water_mL = BASE_ML_PER_QUERY + (responseTokens / 1000) * ML_PER_1K_TOKENS
+ * We use prompt and response length as a transparent local proxy:
+ *   water_mL = BASE_ML_PER_QUERY + ((promptTokens + responseTokens) / 1000)
+ *              * ML_PER_1K_TOKENS
  *
- * where responseTokens is ESTIMATED from character count (~4 chars/token).
+ * Tokens are ESTIMATED from character count (~4 chars/token).
  *
  * The defaults below land a typical ~300-token answer at ~14 mL, consistent
  * with ~500 mL / ~35 responses. THESE ARE ASSUMPTIONS — tune to taste.
@@ -45,6 +46,9 @@
     ML_PER_1K_TOKENS: 30,      // marginal water per 1000 generated tokens (mL)
     CHARS_PER_TOKEN: 4,        // rough tokenizer approximation
     ASSUMED_TOKENS_WHEN_UNKNOWN: 300, // used when response length can't be read
+    ASSUMED_PROMPT_TOKENS_WHEN_UNKNOWN: 50,
+    ESTIMATION_ENABLED: true,
+    VOLUME_UNIT: "metric",
     DAILY_GOAL_ML: 5000        // "budget" used for the Today donut (5 L)
   });
 
@@ -61,10 +65,19 @@
     return Math.max(1, Math.round(text.length / cfg.CHARS_PER_TOKEN));
   }
 
+  function estimatePromptTokens(text, cfg) {
+    if (!text || typeof text !== "string" || text.trim().length === 0) {
+      return cfg.ASSUMED_PROMPT_TOKENS_WHEN_UNKNOWN;
+    }
+    return estimateTokens(text, cfg);
+  }
+
   /**
    * Estimate water consumption for a single query/response.
    * @param {object} [opts]
+   * @param {string} [opts.promptText] the user's prompt, if available
    * @param {string} [opts.responseText] the model's answer, if available
+   * @param {number} [opts.promptTokens] explicit prompt-token count
    * @param {number} [opts.responseTokens] explicit token count (wins over text)
    * @param {object} [opts.config] overrides for the model constants
    * @returns {{ml:number, tokens:number, config:object}}
@@ -72,15 +85,22 @@
   function estimateWater(opts) {
     opts = opts || {};
     const cfg = Object.assign({}, DEFAULTS, opts.config || {});
-    const tokens =
+    const responseTokens =
       typeof opts.responseTokens === "number" && opts.responseTokens > 0
         ? opts.responseTokens
         : estimateTokens(opts.responseText, cfg);
+    const promptTokens =
+      typeof opts.promptTokens === "number" && opts.promptTokens > 0
+        ? opts.promptTokens
+        : estimatePromptTokens(opts.promptText, cfg);
+    const tokens = promptTokens + responseTokens;
 
     const ml = cfg.BASE_ML_PER_QUERY + (tokens / 1000) * cfg.ML_PER_1K_TOKENS;
     return {
       ml: Math.round(ml * 100) / 100, // 2 decimals
       tokens: tokens,
+      promptTokens: promptTokens,
+      responseTokens: responseTokens,
       config: cfg
     };
   }
@@ -90,8 +110,13 @@
    * @param {number} ml
    * @returns {string}
    */
-  function formatVolume(ml) {
+  function formatVolume(ml, unit) {
     if (!isFinite(ml) || ml < 0) ml = 0;
+    if (unit === "gallon") {
+      if (ml === 0) return "0 gal";
+      const gallons = ml / 3785.411784;
+      return `${gallons.toFixed(gallons < 1 ? 3 : 2)} gal`;
+    }
     if (ml < 1000) return `${ml.toFixed(ml < 10 ? 1 : 0)} mL`;
     return `${(ml / 1000).toFixed(2)} L`;
   }
@@ -102,8 +127,13 @@
    * @param {number} ml
    * @returns {{value:string, unit:string}}
    */
-  function splitVolume(ml) {
+  function splitVolume(ml, unit) {
     if (!isFinite(ml) || ml < 0) ml = 0;
+    if (unit === "gallon") {
+      if (ml === 0) return { value: "0", unit: "gal" };
+      const gallons = ml / 3785.411784;
+      return { value: gallons.toFixed(gallons < 1 ? 3 : 2), unit: "gal" };
+    }
     if (ml < 1000) return { value: ml < 100 ? ml.toFixed(1) : String(Math.round(ml)), unit: "mL" };
     return { value: (ml / 1000).toFixed(2), unit: "Liters" };
   }
@@ -121,12 +151,20 @@
     return `~${(ml / bottleMl).toFixed(1)} water bottles`;
   }
 
+  function compactingTip(ml, queries) {
+    if (!ml || !queries) return "Ask one clear question instead of splitting it across follow-ups.";
+    if (queries >= 50) return "You have a long history. Combine context and ask for a concise answer when you can.";
+    if (queries >= 10) return "A clear brief and a requested answer length can reduce extra turns.";
+    return "One focused prompt can replace several follow-ups.";
+  }
+
   globalThis.AquaAIEstimator = {
     DEFAULTS,
     estimateTokens,
     estimateWater,
     formatVolume,
     splitVolume,
-    relatableEquivalent
+    relatableEquivalent,
+    compactingTip
   };
 })();

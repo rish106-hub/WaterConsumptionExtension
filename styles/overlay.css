@@ -79,7 +79,14 @@
   transform: translateY(-1px);
   border-color: var(--aq-accent);
 }
+#aquaai-wrap #aquaai-bar:focus-visible,
+#aquaai-wrap #aquaai-close:focus-visible,
+#aquaai-wrap #aquaai-dismiss-tip:focus-visible {
+  outline: 2px solid var(--aq-accent);
+  outline-offset: 2px;
+}
 #aquaai-wrap .aquaai-drop { display: inline-flex; color: var(--aq-accent); }
+#aquaai-wrap.aquaai-paused .aquaai-drop { color: var(--aq-faint); }
 #aquaai-wrap .aquaai-ico { width: 15px; height: 15px; display: block; }
 #aquaai-wrap .aquaai-head-title { display: inline-flex; align-items: center; gap: 7px; }
 #aquaai-wrap .aquaai-head-title .aquaai-ico { width: 16px; height: 16px; color: var(--aq-accent); }
@@ -102,6 +109,26 @@
   display: none;
 }
 #aquaai-wrap.aquaai-open #aquaai-panel { display: block; }
+#aquaai-wrap #aquaai-toast {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(280px, calc(100vw - 28px));
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--aq-line);
+  border-radius: 12px;
+  background: var(--aq-panel-bg);
+  box-shadow: 0 10px 28px var(--aq-shadow);
+  color: var(--aq-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+#aquaai-wrap #aquaai-toast strong { display: block; color: var(--aq-text); font-size: 12px; }
+#aquaai-wrap #aquaai-toast span { display: block; margin-top: 2px; }
+#aquaai-wrap.aquaai-open #aquaai-toast { display: none; }
 
 #aquaai-wrap .aquaai-panel-head {
   display: flex;
@@ -133,24 +160,25 @@
 #aquaai-wrap .aquaai-row:last-of-type { border-bottom: none; }
 #aquaai-wrap .aquaai-row b { color: var(--aq-accent); font-size: 13px; }
 
-#aquaai-wrap .aquaai-note {
-  font-size: 11px;
-  color: var(--aq-muted);
-  text-align: center;
-  margin: 10px 0 6px;
-}
-#aquaai-wrap .aquaai-disclaimer {
-  font-size: 10px;
-  line-height: 1.4;
-  color: var(--aq-faint);
+#aquaai-wrap .aquaai-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 9px;
+  margin-top: 7px;
   border-top: 1px solid var(--aq-line);
-  padding-top: 8px;
+  color: var(--aq-muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
-#aquaai-wrap .aquaai-privacy {
-  font-size: 10px;
-  line-height: 1.4;
-  color: var(--aq-accent);
-  margin-top: 6px;
+#aquaai-wrap #aquaai-dismiss-tip {
+  margin-left: auto;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--aq-muted);
+  font-size: 15px;
+  line-height: 1;
 }
 
 /* busy / calculating state */
