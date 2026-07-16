@@ -52,6 +52,16 @@ body {
 
 /* Header */
 .head { display: flex; align-items: center; gap: 11px; margin-bottom: 16px; }
+.tracking-control {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); color: var(--text); font-size: 12px; font-weight: 700;
+}
+.tracking-control:hover { border-color: var(--accent); color: var(--accent); }
+.tracking-control.is-paused { color: var(--danger); }
+.tracking-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+.tracking-control.is-paused .tracking-dot { background: var(--danger); }
+.estimation-status { margin: 6px 2px 12px; text-align: center; color: var(--muted); font-size: 10.5px; line-height: 1.35; }
 .logo svg { width: 30px; height: 34px; display: block; }
 .head-text { flex: 1; }
 .head-text h1 { font-size: 19px; margin: 0; font-weight: 800; letter-spacing: -0.3px; }
@@ -64,6 +74,10 @@ body {
 }
 .icon-btn:hover { background: var(--accent-soft); color: var(--accent); }
 .icon-btn svg { width: 18px; height: 18px; }
+.unit-select {
+  width: 70px; height: 32px; padding: 0 5px; border: 1px solid var(--line);
+  border-radius: 9px; background: var(--card); color: var(--muted); font: 600 10px inherit;
+}
 
 /* Theme toggle shows the icon for the mode you'll switch TO. */
 .ico-sun { display: none; }
@@ -87,7 +101,6 @@ body {
   box-shadow: 0 1px 2px rgba(16, 40, 70, 0.04);
 }
 .card.row { display: flex; align-items: center; justify-content: space-between; }
-.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .card-label {
   font-size: 12px; color: var(--muted); font-weight: 600;
   letter-spacing: 0.1px; margin-bottom: 3px;
@@ -96,34 +109,21 @@ body {
 .stat-num { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; line-height: 1; }
 .stat-unit { font-size: 13px; font-weight: 600; color: var(--muted); }
 .card-foot { font-size: 11px; color: var(--muted); margin-top: 5px; }
+.card-foot.impact { max-width: 230px; line-height: 1.4; margin-top: 8px; }
+.card-foot.guidance { max-width: 230px; color: var(--text); line-height: 1.4; margin-bottom: 0; }
+.card-foot.scale { max-width: 230px; line-height: 1.4; margin-top: 7px; }
+.scale-scenario {
+  margin: 12px 0; padding: 13px 15px; border-left: 3px solid var(--accent);
+  background: var(--accent-soft); border-radius: 0 12px 12px 0;
+}
+.scale-scenario p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.scale-scenario .scenario-stat { margin-top: 6px; color: var(--accent); font-size: 23px; font-weight: 800; letter-spacing: -0.4px; }
+.scale-scenario .scenario-note { margin-top: 4px; font-size: 10px; }
 
 .badge-ico { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; flex: none; }
 .badge-ico svg { width: 22px; height: 22px; }
 .badge-ico.blue { background: var(--accent-soft); color: var(--accent); }
 .badge-ico.green { background: var(--green-soft); color: var(--green); }
-
-/* Donut */
-.donut { width: 58px; height: 58px; flex: none; }
-.donut-track { fill: none; stroke: var(--line); stroke-width: 6; }
-.donut-arc {
-  fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round;
-  transform: rotate(-90deg); transform-origin: 50% 50%;
-  transition: stroke-dasharray 0.6s ease;
-}
-.donut-pct { fill: var(--text); font-size: 15px; font-weight: 800; text-anchor: middle; }
-
-/* Trend chart */
-.trend-delta { font-size: 11.5px; font-weight: 700; }
-.trend-delta.up { color: var(--danger); }
-.trend-delta.down { color: var(--green); }
-.trend { width: 100%; height: 76px; display: block; overflow: visible; }
-.trend-labels {
-  display: flex; justify-content: space-between;
-  font-size: 10px; color: var(--muted); margin-top: 4px; padding: 0 1px;
-}
-
-/* Tagline */
-.tagline { text-align: center; font-size: 11.5px; color: var(--muted); margin: 4px 0 12px; }
 
 /* Buttons */
 button { cursor: pointer; font-family: inherit; }
@@ -147,15 +147,6 @@ button { cursor: pointer; font-family: inherit; }
 }
 
 .scan-status { font-size: 11px; color: var(--muted); line-height: 1.45; margin: 8px 2px 0; text-align: center; }
-
-.privacy {
-  display: flex; align-items: flex-start; gap: 8px;
-  background: var(--accent-soft); border-radius: 12px;
-  padding: 10px 12px; margin-top: 12px;
-  font-size: 10.5px; line-height: 1.5; color: var(--muted);
-}
-.privacy svg { width: 15px; height: 15px; flex: none; margin-top: 1px; color: var(--accent); }
-.privacy b { color: var(--text); font-weight: 700; }
 
 /* Settings */
 .settings { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }

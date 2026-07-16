@@ -9,13 +9,28 @@ query, to raise awareness of AI's environmental impact.
 ## What it does
 
 1. **Detects** interactions on `chatgpt.com` / `chat.openai.com`.
-2. **Estimates** water per query from response length and a research-based model.
-3. **Displays** a small water-drop icon docked on the prompt bar (click to
-   expand This-prompt / Today / Lifetime details).
-4. **Tracks** cumulative usage (per-day + all-time) in `chrome.storage.local`,
-   with a toolbar badge and a popup dashboard (donut goal + weekly line chart).
+2. **Estimates** water per turn from prompt and response length using a transparent model.
+3. **Displays** a small water-drop icon docked on the prompt bar. It shows
+   only the estimated water footprint of the current chat.
+4. **Tracks** the current chat and optional history estimate in `chrome.storage.local`,
+   with a compact popup focused on the active conversation.
 5. **Backfills history**: on load it tallies the open conversation, and the
    **Scan** button reads *all* your conversations in the background.
+6. **Pauses cleanly**: the popup can stop new estimates. Turns sent while
+   paused are not added later if the user resumes tracking.
+7. **Suggests practical reductions**: after several turns, the popup offers a
+   short prompt-writing suggestion and gives history estimates a simple volume
+   comparison.
+8. **Uses your units**: switch the popup, chat indicator, and toolbar badge
+   between metric volume and US gallons.
+9. **Shows scale immediately**: after the first estimate, the popup shows a
+   transparent 100,000-person scenario; a history scan upgrades it to a
+   multi-prompt scenario based on the user's own average.
+10. **Shows the moment on-page**: after a completed live response, a brief
+    message above the composer shows the prompt estimate and its 100,000-prompt
+    scale scenario.
+11. **Stays attached to the live chat**: the composer control reattaches when
+    ChatGPT rerenders and waits for a new chat ID before it records a live turn.
 
 ### Live vs. history (why "Today" stays honest)
 
@@ -32,12 +47,14 @@ The **Scan my ChatGPT history** button (popup) messages the content script,
 which calls ChatGPT's own backend using your logged-in session:
 `/api/auth/session` for a token, then paginates `/backend-api/conversations`
 and reads each `/backend-api/conversation/<id>`. It runs invisibly (no
-tab-hopping) and covers **every** conversation, not just the visible sidebar.
+tab-hopping) and attempts every listed conversation, not just the visible
+sidebar.
 
 > These are ChatGPT's private/unofficial endpoints, so a backend change could
-> break the scan. Nothing leaves your browser — data is read only to compute
-> local totals. Scanned messages are de-duplicated by message id, so scanning
-> repeatedly is safe.
+> break the scan. The scanner follows the active branch, so discarded
+> regenerations are not counted. Chats that fail to load are reported as
+> incomplete instead of being presented as a complete scan. Scanned messages
+> are de-duplicated by message id, so scanning repeatedly is safe.
 
 ## Architecture
 
@@ -68,8 +85,8 @@ conflict.
 ## Water model  `[WATER_CONSUMPTION_MODEL_DETAILS]`
 
 ```
-water_mL = BASE_ML_PER_QUERY + (responseTokens / 1000) * ML_PER_1K_TOKENS
-responseTokens ≈ responseChars / CHARS_PER_TOKEN
+water_mL = BASE_ML_PER_QUERY + ((promptTokens + responseTokens) / 1000) * ML_PER_1K_TOKENS
+tokens ≈ characters / CHARS_PER_TOKEN
 ```
 
 Defaults (`[WATER_CONSUMPTION_FACTOR]`, all user-tunable in the popup):
@@ -79,14 +96,17 @@ Defaults (`[WATER_CONSUMPTION_FACTOR]`, all user-tunable in the popup):
 | `BASE_ML_PER_QUERY` | `5` mL | fixed cooling/overhead per request |
 | `ML_PER_1K_TOKENS` | `30` mL | marginal water per 1,000 generated tokens |
 | `CHARS_PER_TOKEN` | `4` | tokenizer approximation |
-| `ASSUMED_TOKENS_WHEN_UNKNOWN` | `300` | used when length can't be read |
+| `ASSUMED_TOKENS_WHEN_UNKNOWN` | `300` | used when answer length can't be read |
+| `ASSUMED_PROMPT_TOKENS_WHEN_UNKNOWN` | `50` | used when prompt length can't be read |
 
 **Basis:** Li, P., Yang, J., Islam, M. A., & Ren, S. (2023), *"Making AI Less
 Thirsty"* (arXiv:2304.03271) — a short GPT-3-class session of ~20–50 medium
 responses consumes on the order of ~500 mL of freshwater (on-site cooling +
 off-site power generation), i.e. roughly ~10–25 mL/response. The defaults land
-a typical ~300-token answer at ~14 mL. Real usage varies widely by model, data
-centre WUE, and grid — hence everything is an editable assumption.
+a 50-token prompt plus ~300-token answer at ~15.5 mL. This is a proxy, not a
+measurement: it does not know the selected model, data centre, hidden system
+prompt, or full context window. Real usage varies widely by model, data centre
+WUE, and grid — hence everything is an editable assumption.
 
 ## Install (unpacked)
 

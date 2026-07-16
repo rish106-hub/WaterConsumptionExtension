@@ -17,6 +17,9 @@ const DEFAULT_CONFIG = {
   ML_PER_1K_TOKENS: 30,
   CHARS_PER_TOKEN: 4,
   ASSUMED_TOKENS_WHEN_UNKNOWN: 300,
+  ASSUMED_PROMPT_TOKENS_WHEN_UNKNOWN: 50,
+  ESTIMATION_ENABLED: true,
+  VOLUME_UNIT: "metric",
   DAILY_GOAL_ML: 5000
 };
 
@@ -36,16 +39,19 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-function formatBadge(ml) {
+function formatBadge(ml, unit) {
   if (!ml || ml <= 0) return "";
+  if (unit === "gallon") return `${(ml / 3785.411784).toFixed(ml < 3785 ? 2 : 1)}g`;
   if (ml < 1000) return `${Math.round(ml)}`;      // e.g. "420"
   return `${(ml / 1000).toFixed(1)}L`;            // e.g. "1.3L"
 }
 
 function refreshBadge(todayMl) {
-  const text = formatBadge(todayMl);
-  chrome.action.setBadgeText({ text });
-  chrome.action.setBadgeBackgroundColor({ color: "#1e88e5" });
+  chrome.storage.local.get([STORAGE_CONFIG_KEY], (res) => {
+    const unit = res[STORAGE_CONFIG_KEY] && res[STORAGE_CONFIG_KEY].VOLUME_UNIT;
+    chrome.action.setBadgeText({ text: formatBadge(todayMl, unit) });
+    chrome.action.setBadgeBackgroundColor({ color: "#1e88e5" });
+  });
 }
 
 // Update badge when the content script records a query…
@@ -57,7 +63,17 @@ chrome.runtime.onMessage.addListener((msg) => {
 
 // …and also whenever storage changes (e.g. reset from popup, or day rollover).
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local" || !changes[STORAGE_STATS_KEY]) return;
+  if (area !== "local") return;
+  if (changes[STORAGE_CONFIG_KEY] && !changes[STORAGE_STATS_KEY]) {
+    chrome.storage.local.get([STORAGE_STATS_KEY], (res) => {
+      const stats = res[STORAGE_STATS_KEY] || {};
+      const d = new Date();
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      refreshBadge(stats.days && stats.days[key] ? stats.days[key].ml : 0);
+    });
+    return;
+  }
+  if (!changes[STORAGE_STATS_KEY]) return;
   const stats = changes[STORAGE_STATS_KEY].newValue;
   if (!stats) {
     refreshBadge(0);
